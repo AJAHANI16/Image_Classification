@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "image-classification-lab"
+version = "0.1.0"
+description = "Reproducible transfer learning, evaluation, and calibrated image classification"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.6,<3",
+    "torchvision>=0.21,<1",
+    "numpy>=1.26,<3",
+    "Pillow>=10.4,<13",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[project.scripts]
+image-classification = "image_classification.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "pretrained: opt-in training checks that download official ImageNet weights",
+    "multiworker: opt-in training check requiring local multiprocessing IPC sockets",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
