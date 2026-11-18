@@ -1,44 +1,37 @@
-# Initial verification
+# Testing
 
-Verified in this workspace on 2026-10-19. The repository was empty before this implementation.
+Run checks from the repository root after installing `.[dev]`:
 
-## Environment
+```bash
+ruff check .
+ruff format --check .
+pytest -q
+image-classification smoke --output runs/smoke-check
+```
 
-| Component | Version |
-| --- | --- |
-| Python | 3.12.14 |
-| PyTorch | 2.14.1+cpu |
-| TorchVision | 0.29.1+cpu |
-| NumPy | 2.5.2 |
-| Pillow | 12.3.0 |
-| pytest | 9.1.1 |
-| Ruff | 0.17.1 |
+Use a new output directory for each smoke run. The default suite runs offline after dependencies are installed.
 
-## Results
+## What the tests exercise
 
-| Check | Result |
-| --- | --- |
-| `ruff check .` | Passed |
-| `ruff format --check .` | Passed |
-| `pytest -q --run-pretrained` | 49 passed, 1 skipped, 31.85 seconds |
-| Installed `image-classification smoke --output runs/local-smoke` | Passed: training, calibration, checkpoint reload, evaluation, prediction |
-| `python -m pip wheel --no-deps .` | Wheel built successfully |
-| `python -m pip check` | No broken requirements |
-| `python -m compileall -q src tests` | Passed |
+- Reproducible, disjoint splits, class mapping, duplicate/corrupt-image handling, and manifest changes.
+- Confusion matrices, F1, log-loss, Brier score, and calibration error against known inputs.
+- Backbone freezing, BatchNorm state, and forward/backward passes for each architecture.
+- Saved preprocessing, checkpoint reload, evaluation, and prediction in a separate process.
+- Rejection of invalid arguments and existing non-empty run directories.
 
-The opt-in pretrained tests downloaded the official EfficientNetV2-S and ConvNeXt-Tiny ImageNet weights. Each model completed two training epochs (one frozen-backbone epoch, one unfrozen epoch), augmentation and mixed-label training, validation-only temperature fitting, test evaluation, checkpoint reload, and image prediction. These integration checks used 64px synthetic images to bound CPU time; they establish software operation, not real-task accuracy.
+## Optional integration checks
 
-The offline synthetic red/blue demo achieved 100% on its four held-out test images. This intentionally easy, tiny task validates the workflow only. It is not evidence of accuracy on photographs, deployment data, or unknown classes.
+```bash
+pytest -q --run-pretrained
+pytest -q --run-multiworker
+```
 
-## Coverage and limits
+`--run-pretrained` downloads official ImageNet weights and fine-tunes both backbones on small synthetic images. It checks weight loading and the training path, not performance on photographs.
 
-- Splits are reproducible, class-stratified, disjoint, and preserved for pre-split folders. Exact duplicate decoded RGB content and conflicting labels are rejected. Near-duplicates and correlated subjects require user-provided group-separated splits.
-- Metrics are checked against hand-computed confusion matrices, F1, negative log-likelihood, Brier score, and calibration error. Temperature fitting is checked for validation-NLL improvement and unchanged predicted classes.
-- Evaluation preprocessing is compared numerically with both official weights' transforms. Checkpoint reloads preserve class order and preprocessing. Edited datasets and mismatched manifests are rejected.
-- Backbone freezing is checked for both gradients and BatchNorm running statistics. All three model architectures complete offline forward/backward checks.
-- Full CLI smoke/prediction checks run in separate Python processes. Invalid arguments fail with a concise error; existing runs cannot be overwritten.
-- The local environment blocks the IPC sockets PyTorch uses for multiworker data loaders. That integration test is opt-in and was skipped locally. The portable default is `--workers 0`; worker mode uses spawn and a bounded timeout. GitHub Actions is configured to run `--run-multiworker` on Python 3.11 and 3.12.
-- CUDA mixed precision, CUDA hardware, and Apple MPS were not available for local validation. No GPU/MPS performance or compatibility result is claimed.
-- No real dataset, trained task-specific weights, or real-world benchmark was supplied. Select augmentations and validate accuracy/calibration on your own representative data before deployment. Training resume, distributed training, multilabel classification, detection, and unknown-class rejection are outside this initial implementation.
+`--run-multiworker` exercises data loading with multiprocessing. It requires local IPC support; the loader uses `spawn` and a 60-second batch timeout. GitHub Actions enables this check on Python 3.11 and 3.12. See the [run history](https://github.com/AJAHANI16/Image_Classification/actions) for results on a particular revision.
 
-Reproduce the local checks from the repository root using the commands in the README. The default dependency ranges permit compatible newer packages; each training run records the actual Torch/TorchVision versions used.
+## What remains dataset- and hardware-dependent
+
+The synthetic red/blue task is deliberately easy. Its score establishes that the workflow runs, not that a model generalizes to a real classification task. A representative dataset, independent held-out groups, and task-specific evaluation are needed for that conclusion.
+
+CPU tests do not validate CUDA mixed precision, Apple MPS, GPU memory use, or throughput. Test those paths on the intended hardware. Training resume, distributed training, multilabel classification, detection, and unknown-class rejection are outside the current implementation.
